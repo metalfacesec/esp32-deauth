@@ -1,4 +1,14 @@
 #include "esp_wifi.h"
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define OLED_RESET     -1
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 String defaultTTL = "60";
 
@@ -26,21 +36,11 @@ int curChannel = 1;
 
 void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
   wifi_promiscuous_pkt_t *p = (wifi_promiscuous_pkt_t*)buf;
-  int len = p->rx_ctrl.sig_len;
   WifiMgmtHdr *wh = (WifiMgmtHdr*)p->payload;
-  len -= sizeof(WifiMgmtHdr);
- 
-  if (len < 0){
-    Serial.println("Receuved 0");
-    return;
-  }
 
-  String packet;
-  for(int i = 0; i <= len; i++){
-     packet += String(p->payload[i], BIN);
-     packet += " ";
-  }
-  Serial.println(packet);
+  int16_t test = wh->duration;
+
+  Serial.println(String(test, BIN));
 }
 
 void setup() {
@@ -55,6 +55,29 @@ void setup() {
   esp_wifi_set_promiscuous_filter(&filt);
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
   esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  
+  display.display();
+  delay(2000);
+
+  display.clearDisplay();
+
+ display.setTextSize(1);                  // setTextSize applique est facteur d'échelle qui permet d'agrandir ou réduire la font
+
+display.setTextColor(WHITE);             // La couleur du texte
+
+display.setCursor(0,0);                  // On va écrire en x=0, y=0
+
+display.println("Hello, world!");        // un println comme pour écrire sur le port série
+
+display.setFont();    
+
+  display.display();
+  delay(2000);
 }
 
 void loop() {
@@ -63,6 +86,6 @@ void loop() {
     }
     
     esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
-    delay(1000);
+    delay(5000);
     curChannel++;
 }
