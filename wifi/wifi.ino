@@ -16,8 +16,9 @@ using namespace std;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 int curChannel = 1;
-String currentMac = "";
-String defaultTTL = "60";
+int currentPage = 1;
+long lastPageChange = 0;
+vector<String> macArray;
 
 const wifi_promiscuous_filter_t filt = {
     .filter_mask=WIFI_PROMIS_FILTER_MASK_MGMT|WIFI_PROMIS_FILTER_MASK_DATA
@@ -37,8 +38,6 @@ typedef struct {
   unsigned char payload[];
 } __attribute__((packed)) WifiMgmtHdr;
 
-vector<String> macArray;
-
 void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
     wifi_promiscuous_pkt_t *p = (wifi_promiscuous_pkt_t*)buf;
     WifiMgmtHdr *wh = (WifiMgmtHdr*)p->payload;
@@ -57,15 +56,11 @@ void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
         }
     }
 
-    if (macArray.size() >= 5) {
-        return;
-    }
-
     macAttack.toUpperCase();
-    
+
+    // Prevent duplicates
     for (int i = 0; i < macArray.size(); i++) {
         if (macAttack == macArray[i]) {
-            Serial.println("Returning");
             return;
         }
     }
@@ -73,9 +68,15 @@ void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
     macArray.push_back(macAttack);   
 }
 
-void setup() {
-    Serial.begin(115200);
-  
+int getMaxPages() {
+    int maxPages = macArray.size() / MAX_MACS_ON_SCREEN;
+    if (macArray.size() % MAX_MACS_ON_SCREEN > 0) {
+        maxPages++;
+    }
+    return maxPages;
+}
+
+void setWifiPromiscuousMode() {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
@@ -85,7 +86,9 @@ void setup() {
     esp_wifi_set_promiscuous_filter(&filt);
     esp_wifi_set_promiscuous_rx_cb(&sniffer);
     esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
-  
+}
+
+void setupDisplay() {
     if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println(F("SSD1306 allocation failed"));
         for(;;);
@@ -93,14 +96,23 @@ void setup() {
   
     display.setTextSize(1);
     display.setTextColor(WHITE);
+}
+
+void setup() {
+    Serial.begin(115200);
+  
+    setWifiPromiscuousMode();
+    setupDisplay();
+}
+
+void changeWifiChannel() {
+    if(curChannel > maxCh){ 
+        curChannel = 1;
+    }
     
-    display.display();
-    delay(2000);
-    display.clearDisplay();
-  
-    display.println("Hello, world!");
-  
-    display.display();
+    esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
+    delay(1000);
+    curChannel++;
 }
 
 void displayFoundMac() {
@@ -111,24 +123,43 @@ void displayFoundMac() {
     display.clearDisplay();
 
     display.setCursor(0, 6);
-    display.println("Active Wifi MACs");
+    display.println("Active Clients");
+    
+    display.setCursor(100, 6);
+    display.println(String(currentPage) + "/" + String(getMaxPages()));
 
-    for (int i = i; i < macArray.size(); i++) {
-        display.setCursor(0, (i * 9) + 16);
-        display.println(macArray[i]);
+    int row = 0;
+    int startIndex = (currentPage - 1) * MAX_MACS_ON_SCREEN;
+    int endIndex = startIndex + MAX_MACS_ON_SCREEN;
+    for (int i = startIndex; i < endIndex; i++) {
+        if (i < macArray.size()) {
+            display.setCursor(0, (row * 9) + 16);
+            display.println(macArray[i]);
+            row++;
+        }
     }
-  
     display.display();
 }
 
 void loop() {
-    if(curChannel > maxCh){ 
-        curChannel = 1;
-    }
+    long now = millis();
     
-    esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
-    delay(5000);
-    curChannel++;
+    changeWifiChannel();
 
-    displayFoundMac();
+    if (lastPageChange == 0 || (millis() - lastPageChange > 2000)) {
+        lastPageChange = millis();
+
+        if (macArray.size() <= MAX_MACS_ON_SCREEN) {
+            displayFoundMac();
+            return;
+        }
+
+        if (currentPage == getMaxPages()) {
+            currentPage = 1;
+        } else {
+            currentPage++;
+        }
+        
+        displayFoundMac();
+    }
 }
