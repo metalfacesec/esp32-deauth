@@ -8,7 +8,7 @@
 using namespace std;
 
 #define maxCh 11
-#define MAX_MACS 10
+#define MAX_MACS_ON_SCREEN 5
 #define OLED_RESET -1
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -46,7 +46,12 @@ void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
     MacAddr mac_add = (MacAddr)wh->sa;
     String macAttack;
     for (int i = 0; i < sizeof(mac_add.mac); i++) {
-        macAttack += String(mac_add.mac[i], HEX);
+        String macDigit = String(mac_add.mac[i], HEX);
+        if (macDigit.length() == 1) {
+            macDigit = "0" + macDigit;
+        }
+        
+        macAttack += macDigit;
         if (i != sizeof(mac_add.mac) - 1) {
           macAttack += ":";
         }
@@ -65,9 +70,7 @@ void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
         }
     }
 
-     if (macAttack.startsWith("DC")) {
-      macArray.push_back(macAttack);
-    }
+    macArray.push_back(macAttack);   
 }
 
 void setup() {
