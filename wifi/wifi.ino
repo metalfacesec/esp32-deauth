@@ -24,7 +24,7 @@ const wifi_promiscuous_filter_t filt = {
 };
 
 typedef struct {
-  uint8_t mac[6];
+    uint8_t mac[6];
 } __attribute__((packed)) MacAddr;
 
 typedef struct {
@@ -40,26 +40,34 @@ typedef struct {
 vector<String> macArray;
 
 void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
-  wifi_promiscuous_pkt_t *p = (wifi_promiscuous_pkt_t*)buf;
-  WifiMgmtHdr *wh = (WifiMgmtHdr*)p->payload;
+    wifi_promiscuous_pkt_t *p = (wifi_promiscuous_pkt_t*)buf;
+    WifiMgmtHdr *wh = (WifiMgmtHdr*)p->payload;
 
-  MacAddr mac_add = (MacAddr)wh->sa;
-  String macAttack;
-  for (int i = 0; i < sizeof(mac_add.mac); i++) {
-      macAttack += String(mac_add.mac[i], HEX);
-  }
-
-  if (macArray.size() >= 5) {
-      return;
-  }
-  for (int i = 0; i < macArray.size(); i++) {
-    if (macAttack == macArray[i]) {
-      Serial.println("Returning");
-      return;
+    MacAddr mac_add = (MacAddr)wh->sa;
+    String macAttack;
+    for (int i = 0; i < sizeof(mac_add.mac); i++) {
+        macAttack += String(mac_add.mac[i], HEX);
+        if (i != sizeof(mac_add.mac) - 1) {
+          macAttack += ":";
+        }
     }
-  }
-  Serial.println("Addding to vectory");
-  macArray.push_back(macAttack);
+
+    if (macArray.size() >= 5) {
+        return;
+    }
+
+    macAttack.toUpperCase();
+    
+    for (int i = 0; i < macArray.size(); i++) {
+        if (macAttack == macArray[i]) {
+            Serial.println("Returning");
+            return;
+        }
+    }
+
+     if (macAttack.startsWith("DC")) {
+      macArray.push_back(macAttack);
+    }
 }
 
 void setup() {
@@ -87,7 +95,6 @@ void setup() {
     delay(2000);
     display.clearDisplay();
   
-    display.setCursor(0,0);
     display.println("Hello, world!");
   
     display.display();
@@ -100,8 +107,11 @@ void displayFoundMac() {
     delay(2000);
     display.clearDisplay();
 
-    for (int i = 0; i < macArray.size(); i++) {
-        display.setCursor(0, (i * 10) + 6);
+    display.setCursor(0, 6);
+    display.println("Active Wifi MACs");
+
+    for (int i = i; i < macArray.size(); i++) {
+        display.setCursor(0, (i * 9) + 16);
         display.println(macArray[i]);
     }
   
