@@ -125,7 +125,7 @@ void displayFoundMac() {
     display.setCursor(0, 6);
     display.println("Active Clients");
     
-    display.setCursor(100, 6);
+    display.setCursor(90, 6);
     display.println(String(currentPage) + "/" + String(getMaxPages()));
 
     int row = 0;
