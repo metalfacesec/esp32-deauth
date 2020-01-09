@@ -142,8 +142,6 @@ void displayFoundMac() {
 }
 
 void loop() {
-    long now = millis();
-    
     changeWifiChannel();
 
     if (lastPageChange == 0 || (millis() - lastPageChange > 2000)) {
