@@ -7,14 +7,19 @@
 
 using namespace std;
 
-#define maxCh 11
+#define MAX_CHANNELS 11
 #define MAX_MACS_ON_SCREEN 5
 #define OLED_RESET -1
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+#define BUTTON_LEFT_GPIO 15
+#define BUTTON_RIGHT_GPIO 2
+
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+int lastLeftButtonRead = 0;
+int lastRightButtonRead = 0;
 int curChannel = 1;
 int currentPage = 1;
 long lastPageChange = 0;
@@ -103,15 +108,16 @@ void setup() {
   
     setWifiPromiscuousMode();
     setupDisplay();
+    displayFoundMac();
 }
 
 void changeWifiChannel() {
-    if(curChannel > maxCh){ 
+    if(curChannel > MAX_CHANNELS){ 
         curChannel = 1;
     }
     
     esp_wifi_set_channel(curChannel, WIFI_SECOND_CHAN_NONE);
-    delay(1000);
+    delay(100);
     curChannel++;
 }
 
@@ -119,12 +125,11 @@ void displayFoundMac() {
     display.setTextSize(1);
     display.setTextColor(WHITE);
     
-    delay(2000);
+    delay(100);
     display.clearDisplay();
 
     display.setCursor(0, 6);
     display.println("Active Clients");
-    
     display.setCursor(90, 6);
     display.println(String(currentPage) + "/" + String(getMaxPages()));
 
@@ -141,23 +146,37 @@ void displayFoundMac() {
     display.display();
 }
 
+boolean wasButtonReleased(bool isRight, int reading) {
+    if (lastRightButtonRead == 1 && reading == 0 && isRight) {
+        return true;
+    } else if (lastLeftButtonRead == 1 && reading == 0 && !isRight) {
+        return true;
+    }
+    return false;
+}
+
+boolean hasMoreMACPages() {
+   return currentPage < getMaxPages();
+}
+
+boolean hasLowerMACPages() {
+   return currentPage > 1;
+}
+
 void loop() {
     changeWifiChannel();
 
-    if (lastPageChange == 0 || (millis() - lastPageChange > 2000)) {
-        lastPageChange = millis();
+    int leftButtonRead = digitalRead(BUTTON_LEFT_GPIO);
+    int rightButtonRead = digitalRead(BUTTON_RIGHT_GPIO);
 
-        if (macArray.size() <= MAX_MACS_ON_SCREEN) {
-            displayFoundMac();
-            return;
-        }
-
-        if (currentPage == getMaxPages()) {
-            currentPage = 1;
-        } else {
-            currentPage++;
-        }
-        
-        displayFoundMac();
+    if (wasButtonReleased(true, rightButtonRead) && hasMoreMACPages()) {
+        currentPage++;
+    } else if (wasButtonReleased(false, leftButtonRead) && hasLowerMACPages()) {
+        currentPage--;
     }
+    
+    lastRightButtonRead = rightButtonRead;
+    lastLeftButtonRead = leftButtonRead;
+
+    displayFoundMac();
 }
